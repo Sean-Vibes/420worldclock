@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>420 Stream Overlay - Final Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+            background-color: transparent; 
+            font-family: "Comic Sans MS", "Comic Sans", cursive, sans-serif;
+            color: white;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+        }
+
+        #overlay-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            
+            width: 450px; 
+            height: 180px;
+            
+            /* --- UPDATED BORDER --- */
+            border: 10px solid #4CAF50;
+            border-radius: 25px; /* Rounded corners all around */
+            
+            background: rgba(0, 0, 0, 0.6);
+            transition: all 0.3s ease;
+            box-sizing: border-box; /* Ensures border is inside width/height */
+        }
+
+        .label {
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 2px;
+            color: #4CAF50;
+            z-index: 2;
+        }
+
+        #timer {
+            font-size: 4.8rem;
+            color: #4CAF50; 
+            margin: 0;
+            line-height: 1;
+            z-index: 2;
+            transition: all 0.2s ease;
+            font-weight: bold;
+            font-variant-numeric: tabular-nums; 
+        }
+
+        #location {
+            margin-top: 5px;
+            font-size: 1.4rem;
+            color: #fff;
+            z-index: 2;
+        }
+
+        /* Smoke Animation Logic */
+        .under-minute #timer {
+            animation: drift 1s infinite alternate;
+            filter: blur(0.5px);
+            color: #a2f5a5;
+        }
+
+        @keyframes drift {
+            from { transform: rotate(-1deg) scale(1); filter: blur(0px); }
+            to { transform: rotate(1deg) scale(1.03); filter: blur(1.5px); opacity: 0.9; }
+        }
+
+        .smoke-wrap {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: none;
+            border-radius: 15px; /* Matches inner curve of border */
+            overflow: hidden;
+        }
+
+        .under-minute .smoke-wrap { display: block; }
+
+        .particle {
+            position: absolute;
+            bottom: -20px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 50%;
+            filter: blur(12px);
+            animation: rise 2s infinite ease-out;
+        }
+
+        @keyframes rise {
+            0% { transform: translateY(0) scale(1); opacity: 0; }
+            50% { opacity: 0.4; }
+            100% { transform: translateY(-100px) scale(2); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="overlay-container">
+    <div class="smoke-wrap" id="smoke"></div>
+    <div class="label">NEXT 4:20 IN</div>
+    <div id="timer">00:00</div>
+    <div id="location">Checking Zones...</div>
+</div>
+
+<script>
+    const timeZones = [
+        "Pacific/Honolulu", "America/Los_Angeles", "America/Denver", "America/Chicago", 
+        "America/New_York", "America/St_Johns", "Europe/London", "Europe/Berlin", 
+        "Africa/Cairo", "Asia/Dubai", "Asia/Kabul", "Asia/Kolkata", 
+        "Asia/Bangkok", "Asia/Tokyo", "Australia/Sydney", "Pacific/Auckland"
+    ];
+
+    const smokeContainer = document.getElementById('smoke');
+    for (let i = 0; i < 15; i++) {
+        let p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.width = p.style.height = Math.random() * 50 + 10 + 'px';
+        p.style.animationDelay = Math.random() * 2 + 's';
+        smokeContainer.appendChild(p);
+    }
+
+    function updateClock() {
+        const now = new Date();
+        let closest = { diff: Infinity, city: "" };
+
+        timeZones.forEach(zone => {
+            const cityTimeString = now.toLocaleString("en-US", { timeZone: zone });
+            const cityTime = new Date(cityTimeString);
+            
+            [4, 16].forEach(h => {
+                let targetTime = new Date(cityTimeString);
+                targetTime.setHours(h, 20, 0, 0);
+
+                let diff = targetTime - cityTime;
+                
+                if (diff < 0) {
+                    targetTime.setDate(targetTime.getDate() + 1);
+                    diff = targetTime - cityTime;
+                }
+
+                if (diff < closest.diff) {
+                    closest = { diff: diff, city: zone.split('/')[1].replace('_', ' ') };
+                }
+            });
+        });
+
+        const totalSeconds = Math.floor(closest.diff / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        const container = document.getElementById('overlay-container');
+        
+        if (closest.diff < 60000) {
+            container.classList.add('under-minute');
+        } else {
+            container.classList.remove('under-minute');
+        }
+
+        let displayTime = "";
+        if (hours > 0) {
+            displayTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        } else {
+            displayTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+        
+        document.getElementById('timer').innerText = displayTime;
+        document.getElementById('location').innerText = closest.city;
+    }
+
+    setInterval(updateClock, 500);
+    updateClock();
+</script>
+
+</body>
+</html>
