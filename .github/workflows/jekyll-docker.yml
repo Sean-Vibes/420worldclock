@@ -1,5 +1,9 @@
 name: Deploy Static 420 Clock
 
+# This MUST be at the very top level to clear the warning
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 on:
   push:
     branches: ["main"]
@@ -9,10 +13,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-
-# This bypasses the Node.js 20/24 warning by opting into the future now
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   deploy:
@@ -30,7 +30,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # This tells GitHub to just grab your index.html from the main folder
           path: '.'
 
       - name: Deploy to GitHub Pages
