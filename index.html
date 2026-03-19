@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Global 420 - Pro Edition</title>
+    <title>Global 420 - NY Vibes Edition</title>
     <style>
         :root {
             --leaf: #4e9a06;
@@ -29,11 +29,28 @@
             border: 6px solid var(--leaf);
             box-shadow: 0 10px 40px rgba(0,0,0,0.8);
             width: 750px;
-            height: 400px;
+            height: 420px; /* Slightly taller to accommodate logo */
             margin: 20px auto;
             box-sizing: border-box;
             transition: all 0.5s ease;
             overflow: hidden;
+        }
+
+        /* LOGO STYLING */
+        .corner-logo {
+            position: absolute;
+            bottom: 15px;
+            left: 20px;
+            width: 120px; /* Adjust size as needed */
+            height: auto;
+            z-index: 20;
+            filter: drop-shadow(0 0 5px rgba(78, 154, 6, 0.5)) contrast(1.1);
+            transition: all 0.5s ease;
+        }
+
+        .party-mode .corner-logo {
+            filter: drop-shadow(0 0 15px #fff) brightness(1.2);
+            transform: scale(1.1);
         }
 
         /* 60s Warning Pulse */
@@ -49,10 +66,10 @@
             100% { background: rgba(0, 0, 60, 0.9); }
         }
 
-        #hero-city { font-size: 3rem; margin: 10px 0; text-transform: uppercase; font-weight: 900; color: var(--leaf); letter-spacing: 2px; z-index: 10; position: relative; line-height: 1.1; }
+        #hero-city { font-size: 2.8rem; margin: 10px 0; text-transform: uppercase; font-weight: 900; color: var(--leaf); letter-spacing: 2px; z-index: 10; position: relative; line-height: 1.1; }
         #hero-timer { font-size: 6rem; font-family: 'Courier New', monospace; margin: 10px 0; color: #fff; font-weight: bold; z-index: 10; position: relative; text-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
         .label-top { font-size: 1.8rem; letter-spacing: 4px; color: #aaa; text-transform: uppercase; font-weight: bold; z-index: 10; position: relative; }
-        .bottom-label { font-size: 1.6rem; color: var(--leaf); margin-top: 10px; font-weight: bold; z-index: 10; position: relative; }
+        .bottom-label { font-size: 1.6rem; color: var(--leaf); margin-top: 5px; font-weight: bold; z-index: 10; position: relative; }
 
         #fireworks-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; opacity: 0; transition: opacity 0.5s; }
         .party-mode #fireworks-canvas { opacity: 1; }
@@ -65,6 +82,8 @@
 <body>
 
     <div class="content-box" id="overlay-container">
+        <img src="NY_42010.png" alt="NY 420 Vibes" class="corner-logo">
+
         <canvas id="fireworks-canvas"></canvas>
         <div class="smoke-wrap" id="smoke"></div>
         <span class="label-top" id="label-text">NEXT 4:20 IN:</span>
@@ -74,7 +93,6 @@
     </div>
 
 <script>
-    // Full Sync with 420worldclock.com time zones
     const locations = [
         { name: "Pitcairn Islands", tz: "Pacific/Pitcairn" },
         { name: "Gambier Islands", tz: "Pacific/Gambier" },
@@ -120,7 +138,7 @@
     // FIREWORKS
     const canvas = document.getElementById('fireworks-canvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = 750; canvas.height = 400;
+    canvas.width = 750; canvas.height = 420;
     let fw_particles = [];
     let isPartyMode = false;
 
@@ -149,7 +167,7 @@
     }
 
     function animate() {
-        ctx.clearRect(0,0,750,400);
+        ctx.clearRect(0,0,750,420);
         if(isPartyMode && Math.random() < 0.2) spawnBurst();
         fw_particles.forEach((p, i) => {
             if(p.alpha <= 0) fw_particles.splice(i, 1);
@@ -159,7 +177,6 @@
     }
     animate();
 
-    // CLOCK LOGIC
     function update() {
         if (isPartyMode) return;
         const now = new Date();
@@ -167,19 +184,10 @@
 
         locations.forEach(loc => {
             try {
-                const formatter = new Intl.DateTimeFormat('en-US', {
-                    timeZone: loc.tz, hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false
-                });
-                const parts = formatter.formatToParts(now);
-                const h = parseInt(parts.find(p => p.type === 'hour').value);
-                const m = parseInt(parts.find(p => p.type === 'minute').value);
-                const s = parseInt(parts.find(p => p.type === 'second').value);
-
-                let target = new Date(now);
-                target.setHours(16, 20, 0, 0); // 4:20 PM
-
-                // Calculate time in that zone
                 const locNow = new Date(now.toLocaleString("en-US", {timeZone: loc.tz}));
+                let target = new Date(locNow);
+                target.setHours(16, 20, 0, 0);
+
                 if (locNow >= target) target.setDate(target.getDate() + 1);
                 
                 let diff = target - locNow;
@@ -190,7 +198,6 @@
         const container = document.getElementById('overlay-container');
         if (closest.diff <= 1000) { triggerParty(); return; }
 
-        // 60s Warning
         if (closest.diff < 60000) container.classList.add('is-warning');
         else container.classList.remove('is-warning');
 
