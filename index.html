@@ -14,7 +14,7 @@
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #111; /* Fallback background */
+            background-color: transparent; 
             font-family: "Comic Sans MS", "Comic Sans", cursive, sans-serif;
             color: var(--smoke);
         }
@@ -29,25 +29,29 @@
             border: 6px solid var(--leaf);
             box-shadow: 0 10px 40px rgba(0,0,0,0.8);
             width: 750px;
-            height: 420px;
+            height: 420px; /* Slightly taller to accommodate logo */
             margin: 20px auto;
             box-sizing: border-box;
             transition: all 0.5s ease;
             overflow: hidden;
         }
 
-        /* LOGO STYLING - FIXING THE CHECKERBOARD */
+        /* NEW LOGO STYLING - FULL TRANSPARENCY */
         .corner-logo {
             position: absolute;
-            bottom: 10px;
-            left: 15px;
-            width: 140px; 
+            bottom: 15px;
+            left: 20px;
+            width: 140px; /* Adjusted width for better fit */
             height: auto;
             z-index: 20;
-            /* This helps hide the fake checkerboard background */
-            mix-blend-mode: screen; 
-            filter: contrast(1.5) brightness(1.2);
+            /* Enhance the logo's green color against the dark glass */
+            filter: drop-shadow(0 0 5px rgba(78, 154, 6, 0.5)) contrast(1.1);
             transition: all 0.5s ease;
+        }
+
+        .party-mode .corner-logo {
+            filter: drop-shadow(0 0 15px #fff) brightness(1.2);
+            transform: scale(1.1);
         }
 
         /* 60s Warning Pulse */
@@ -55,7 +59,7 @@
         .is-warning #hero-timer { color: var(--warning) !important; animation: fast-pulse 0.5s infinite alternate; }
         @keyframes fast-pulse { from { transform: scale(1); } to { transform: scale(1.08); } }
 
-        /* Party Mode */
+        /* Party Mode Flicker */
         .party-mode { animation: party-flicker 0.4s infinite; border-color: #fff !important; }
         @keyframes party-flicker {
             0% { background: rgba(0, 60, 0, 0.9); }
@@ -79,7 +83,8 @@
 <body>
 
     <div class="content-box" id="overlay-container">
-        <img src="NY_42010.png" alt="NY 420 Vibes" class="corner-logo">
+        <img src="NY_420_Trans.png" alt="NY 420 Vibes" class="corner-logo">
+
         <canvas id="fireworks-canvas"></canvas>
         <div class="smoke-wrap" id="smoke"></div>
         <span class="label-top" id="label-text">NEXT 4:20 IN:</span>
@@ -89,52 +94,87 @@
     </div>
 
 <script>
+    // Full Sync with 420worldclock.com time zones
     const locations = [
         { name: "Pitcairn Islands", tz: "Pacific/Pitcairn" },
+        { name: "Gambier Islands", tz: "Pacific/Gambier" },
         { name: "Marquesas Islands", tz: "Pacific/Marquesas" },
+        { name: "Kiritimati", tz: "Pacific/Kiritimati" },
+        { name: "Chatham Islands", tz: "Pacific/Chatham" },
+        { name: "Fiji", tz: "Pacific/Fiji" },
+        { name: "Norfolk Island", tz: "Pacific/Norfolk" },
         { name: "Sydney / Melbourne", tz: "Australia/Sydney" },
+        { name: "Adelaide", tz: "Australia/Adelaide" },
+        { name: "Brisbane", tz: "Australia/Brisbane" },
+        { name: "Darwin", tz: "Australia/Darwin" },
         { name: "Tokyo / Seoul", tz: "Asia/Tokyo" },
+        { name: "Eucla", tz: "Australia/Eucla" },
         { name: "Shanghai / Beijing", tz: "Asia/Shanghai" },
+        { name: "Phnom Penh / Bangkok", tz: "Asia/Bangkok" },
+        { name: "Yangon", tz: "Asia/Yangon" },
+        { name: "Vostok", tz: "Antarctica/Vostok" },
         { name: "Kathmandu", tz: "Asia/Kathmandu" },
         { name: "Colombo / New Delhi", tz: "Asia/Kolkata" },
+        { name: "Mawson", tz: "Antarctica/Mawson" },
+        { name: "Kabul", tz: "Asia/Kabul" },
         { name: "Dubai", tz: "Asia/Dubai" },
-        { name: "Moscow / Istanbul", tz: "Europe/Moscow" },
+        { name: "Tehran", tz: "Asia/Tehran" },
+        { name: "Amman / Moscow", tz: "Asia/Amman" },
         { name: "Cairo / Johannesburg", tz: "Africa/Cairo" },
-        { name: "London / Lagos", tz: "Europe/London" },
+        { name: "Algiers / London", tz: "Africa/Algiers" },
+        { name: "Accra / Reykjavik", tz: "Africa/Accra" },
+        { name: "Azores Islands", tz: "Atlantic/Azores" },
+        { name: "Noronha", tz: "America/Noronha" },
+        { name: "St. John's", tz: "America/St_Johns" },
+        { name: "Buenos Aires", tz: "America/Argentina/Buenos_Aires" },
+        { name: "Puerto Rico", tz: "America/Puerto_Rico" },
         { name: "New York / Toronto", tz: "America/New_York" },
         { name: "Chicago / Mexico City", tz: "America/Chicago" },
         { name: "Denver / Phoenix", tz: "America/Denver" },
         { name: "Los Angeles / Vancouver", tz: "America/Los_Angeles" },
         { name: "Anchorage", tz: "America/Anchorage" },
-        { name: "Honolulu", tz: "Pacific/Honolulu" }
+        { name: "Honolulu", tz: "Pacific/Honolulu" },
+        { name: "American Samoa", tz: "Pacific/Pago_Pago" }
     ];
 
+    // FIREWORKS
     const canvas = document.getElementById('fireworks-canvas');
     const ctx = canvas.getContext('2d');
     canvas.width = 750; canvas.height = 420;
     let fw_particles = [];
     let isPartyMode = false;
 
-    // FIREWORKS
     class Particle {
         constructor(x, y, color) {
             this.x = x; this.y = y; this.color = color;
             this.vel = { x: (Math.random()-0.5)*15, y: (Math.random()-0.5)*15 };
             this.alpha = 1; this.friction = 0.93; this.gravity = 0.3;
         }
-        draw() { ctx.globalAlpha = this.alpha; ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill(); }
-        update() { this.vel.x *= this.friction; this.vel.y *= this.friction; this.vel.y += this.gravity; this.x += this.vel.x; this.y += this.vel.y; this.alpha -= 0.012; }
+        draw() {
+            ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+        }
+        update() {
+            this.vel.x *= this.friction; this.vel.y *= this.friction; this.vel.y += this.gravity;
+            this.x += this.vel.x; this.y += this.vel.y; this.alpha -= 0.012;
+        }
+    }
+
+    function spawnBurst() {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * (canvas.height * 0.7);
+        const color = `hsl(${Math.random()*360}, 100%, 65%)`;
+        for(let i=0; i<50; i++) fw_particles.push(new Particle(x, y, color));
     }
 
     function animate() {
         ctx.clearRect(0,0,750,420);
-        if(isPartyMode && Math.random() < 0.2) {
-            const x = Math.random() * canvas.width;
-            const y = Math.random() * (canvas.height * 0.7);
-            const color = `hsl(${Math.random()*360}, 100%, 65%)`;
-            for(let i=0; i<50; i++) fw_particles.push(new Particle(x, y, color));
-        }
-        fw_particles.forEach((p, i) => { if(p.alpha <= 0) fw_particles.splice(i, 1); else { p.update(); p.draw(); } });
+        if(isPartyMode && Math.random() < 0.2) spawnBurst();
+        fw_particles.forEach((p, i) => {
+            if(p.alpha <= 0) fw_particles.splice(i, 1);
+            else { p.update(); p.draw(); }
+        });
         requestAnimationFrame(animate);
     }
     animate();
@@ -146,18 +186,15 @@
 
         locations.forEach(loc => {
             try {
-                // Precise local time calculation for the target city
-                const locStr = now.toLocaleString("en-US", {timeZone: loc.tz});
-                const locNow = new Date(locStr);
-                
-                let target = new Date(locStr);
-                target.setHours(16, 20, 0, 0); // 4:20 PM
+                const locNow = new Date(now.toLocaleString("en-US", {timeZone: loc.tz}));
+                let target = new Date(locNow);
+                target.setHours(16, 20, 0, 0);
 
                 if (locNow >= target) target.setDate(target.getDate() + 1);
                 
                 let diff = target - locNow;
-                if (diff < closest.diff) { closest = { diff: diff, name: loc.name }; }
-            } catch(e) { console.error("Error for " + loc.name); }
+                if (diff < closest.diff) closest = { diff: diff, name: loc.name };
+            } catch(e) {}
         });
 
         const container = document.getElementById('overlay-container');
@@ -167,24 +204,31 @@
         else container.classList.remove('is-warning');
 
         document.getElementById('hero-city').innerText = closest.name;
-        
-        let totalSecs = Math.floor(closest.diff / 1000);
+        document.getElementById('hero-timer').innerText = formatMs(closest.diff);
+    }
+
+    function formatMs(ms) {
+        let totalSecs = Math.floor(ms / 1000);
         let h = Math.floor(totalSecs / 3600);
         let m = Math.floor((totalSecs % 3600) / 60);
         let s = totalSecs % 60;
-        document.getElementById('hero-timer').innerText = h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
 
     function triggerParty() {
         isPartyMode = true;
         const container = document.getElementById('overlay-container');
         container.classList.add('party-mode');
+        container.classList.remove('is-warning');
         document.getElementById('label-text').innerText = "IT'S 4:20 IN";
         document.getElementById('hero-timer').innerText = "HIGH TIME";
+        document.getElementById('bottom-label-text').innerText = "CHEERS & BLAZE!!";
+        
         setTimeout(() => {
             isPartyMode = false;
             container.classList.remove('party-mode');
             document.getElementById('label-text').innerText = "NEXT 4:20 IN:";
+            document.getElementById('bottom-label-text').innerText = "Global Cannabis Clock";
             update();
         }, 30000);
     }
