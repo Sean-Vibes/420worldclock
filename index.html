@@ -36,7 +36,7 @@
             overflow: hidden;
         }
 
-        /* LOGO STYLING - Adjusted to half size */
+        /* LOGO STYLING - Transparent and Scaled */
         .corner-logo {
             position: absolute;
             bottom: 12px;
@@ -44,16 +44,16 @@
             width: 70px; 
             height: auto;
             z-index: 20;
-            filter: drop-shadow(0 0 5px rgba(78, 154, 6, 0.5)) contrast(1.1);
+            filter: drop-shadow(0 0 5px rgba(78, 154, 6, 0.5));
             transition: all 0.5s ease;
         }
 
-        /* Warning Pulse Logic */
+        /* Warning Pulse (Final Minute) */
         .is-warning { border-color: var(--warning) !important; box-shadow: 0 0 35px rgba(255, 68, 68, 0.7); }
         .is-warning #hero-timer { color: var(--warning) !important; animation: fast-pulse 0.5s infinite alternate; }
         @keyframes fast-pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
 
-        /* Party Mode Styles */
+        /* PARTY MODE STYLES - Activates at 00:00 */
         .party-mode { animation: party-flicker 0.4s infinite; border-color: #fff !important; }
         @keyframes party-flicker {
             0% { background: rgba(0, 60, 0, 0.9); }
@@ -74,7 +74,7 @@
 <body>
 
     <div class="content-box" id="overlay-container">
-        <img src="NY_42010.png" alt="NY 420 Vibes" class="corner-logo">
+        <img src="NYS_420_logo.png" alt="NY 420 Vibes" class="corner-logo">
         <div class="smoke-wrap" id="smoke"></div>
         <span class="label-top" id="label-text">NEXT 4:20 IN:</span>
         <h1 id="hero-city">SYNCING...</h1>
@@ -83,13 +83,13 @@
     </div>
 
 <script>
+    // Comprehensive location list with AM/PM support to match 420worldclock
     const locations = [
         { name: "Pitcairn Islands", tz: "Pacific/Pitcairn" },
         { name: "Gambier Islands", tz: "Pacific/Gambier" },
         { name: "Marquesas", tz: "Pacific/Marquesas" },
         { name: "Kiritimati", tz: "Pacific/Kiritimati" },
         { name: "Chatham Islands", tz: "Pacific/Chatham" },
-        { name: "Anadyr", tz: "Asia/Anadyr" },
         { name: "Sydney", tz: "Australia/Sydney" },
         { name: "Adelaide", tz: "Australia/Adelaide" },
         { name: "Tokyo", tz: "Asia/Tokyo" },
@@ -98,19 +98,13 @@
         { name: "Bangkok", tz: "Asia/Bangkok" },
         { name: "Kathmandu", tz: "Asia/Kathmandu" },
         { name: "New Delhi", tz: "Asia/Kolkata" },
-        { name: "Kabul", tz: "Asia/Kabul" },
         { name: "Dubai", tz: "Asia/Dubai" },
-        { name: "Tehran", tz: "Asia/Tehran" },
         { name: "Moscow", tz: "Europe/Moscow" },
         { name: "Cairo", tz: "Africa/Cairo" },
         { name: "London", tz: "Europe/London" },
-        { name: "Accra", tz: "Africa/Accra" },
-        { name: "St. John's", tz: "America/St_Johns" },
-        { name: "Buenos Aires", tz: "America/Argentina/Buenos_Aires" },
         { name: "New York", tz: "America/New_York" },
         { name: "Chicago", tz: "America/Chicago" },
         { name: "Denver", tz: "America/Denver" },
-        { name: "Phoenix", tz: "America/Phoenix" },
         { name: "Los Angeles", tz: "America/Los_Angeles" },
         { name: "Anchorage", tz: "America/Anchorage" },
         { name: "Honolulu", tz: "Pacific/Honolulu" }
@@ -126,16 +120,16 @@
 
         locations.forEach(loc => {
             try {
-                // Determine current time in the target city
+                // Get current time string for specific timezone
                 const locTimeStr = now.toLocaleString("en-US", { timeZone: loc.tz });
                 const locDate = new Date(locTimeStr);
 
-                // Check for both 4:20 AM (4) and 4:20 PM (16)
+                // Check both 4:20 AM (4) and 4:20 PM (16)
                 [4, 16].forEach(hour => {
                     let target = new Date(locTimeStr);
                     target.setHours(hour, 20, 0, 0);
 
-                    // If that specific time has passed, add 12 hours to find the next 4:20
+                    // If that specific 4:20 has passed, check the next one (12 hours later)
                     if (locDate >= target) {
                         target.setHours(target.getHours() + 12);
                     }
@@ -147,7 +141,7 @@
                     }
                 });
             } catch (e) {
-                console.warn("Skipping TZ due to error:", loc.tz);
+                console.warn("Skipping TZ:", loc.tz);
             }
         });
 
@@ -155,7 +149,7 @@
         const timerDisplay = document.getElementById('hero-timer');
         const cityDisplay = document.getElementById('hero-city');
 
-        // Check for 4:20 event (within 1 second)
+        // Trigger Party Mode when diff is essentially zero
         if (closest.diff <= 1000) {
             triggerParty();
             return;
@@ -163,14 +157,14 @@
 
         cityDisplay.innerText = closest.name;
 
-        // Final minute warning pulse
+        // Warning Pulse logic
         if (closest.diff < 60000) {
             container.classList.add('is-warning');
         } else {
             container.classList.remove('is-warning');
         }
 
-        // Timer Formatting
+        // Format Timer Display
         let totalSeconds = Math.floor(closest.diff / 1000);
         let h = Math.floor(totalSeconds / 3600);
         let m = Math.floor((totalSeconds % 3600) / 60);
@@ -184,23 +178,26 @@
     function triggerParty() {
         isPartyMode = true;
         const container = document.getElementById('overlay-container');
-        document.getElementById('label-text').innerText = "IT'S 4:20 IN";
-        document.getElementById('hero-timer').innerText = "HIGH TIME";
-        container.classList.add('party-mode');
+        const label = document.getElementById('label-text');
+        const timer = document.getElementById('hero-timer');
 
+        container.classList.add('party-mode');
+        label.innerText = "IT'S 4:20 IN";
+        timer.innerText = "HIGH TIME";
+
+        // Party Mode runs for 30 seconds
         setTimeout(() => {
             isPartyMode = false;
             container.classList.remove('party-mode');
-            document.getElementById('label-text').innerText = "NEXT 4:20 IN:";
+            label.innerText = "NEXT 4:20 IN:";
             updateClock();
         }, 30000);
     }
 
-    // Interval and initial call
     setInterval(updateClock, 1000);
     updateClock();
 
-    // Smoke Particles Effect
+    // Background Smoke Effect
     const smokeContainer = document.getElementById('smoke');
     for (let i = 0; i < 15; i++) {
         let p = document.createElement('div');
