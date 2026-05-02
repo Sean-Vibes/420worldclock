@@ -36,7 +36,6 @@
             overflow: hidden;
         }
 
-        /* LOGO STYLING - Transparent and Scaled */
         .corner-logo {
             position: absolute;
             bottom: 12px;
@@ -48,12 +47,10 @@
             transition: all 0.5s ease;
         }
 
-        /* Warning Pulse (Final Minute) */
         .is-warning { border-color: var(--warning) !important; box-shadow: 0 0 35px rgba(255, 68, 68, 0.7); }
         .is-warning #hero-timer { color: var(--warning) !important; animation: fast-pulse 0.5s infinite alternate; }
         @keyframes fast-pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
 
-        /* PARTY MODE STYLES - Activates at 00:00 */
         .party-mode { animation: party-flicker 0.4s infinite; border-color: #fff !important; }
         @keyframes party-flicker {
             0% { background: rgba(0, 60, 0, 0.9); }
@@ -83,28 +80,27 @@
     </div>
 
 <script>
-    // Comprehensive location list with AM/PM support to match 420worldclock
     const locations = [
         { name: "Pitcairn Islands", tz: "Pacific/Pitcairn" },
         { name: "Gambier Islands", tz: "Pacific/Gambier" },
         { name: "Marquesas", tz: "Pacific/Marquesas" },
         { name: "Kiritimati", tz: "Pacific/Kiritimati" },
         { name: "Chatham Islands", tz: "Pacific/Chatham" },
-        { name: "Sydney", tz: "Australia/Sydney" },
-        { name: "Adelaide", tz: "Australia/Adelaide" },
-        { name: "Tokyo", tz: "Asia/Tokyo" },
+        { name: "Anadyr", tz: "Asia/Anadyr" },
+        { name: "Lord Howe Island", tz: "Australia/Lord_Howe" },
         { name: "Eucla", tz: "Australia/Eucla" },
-        { name: "Shanghai", tz: "Asia/Shanghai" },
-        { name: "Bangkok", tz: "Asia/Bangkok" },
+        { name: "Adelaide", tz: "Australia/Adelaide" },
+        { name: "Darwin", tz: "Australia/Darwin" },
+        { name: "Tokyo", tz: "Asia/Tokyo" },
         { name: "Kathmandu", tz: "Asia/Kathmandu" },
         { name: "New Delhi", tz: "Asia/Kolkata" },
-        { name: "Dubai", tz: "Asia/Dubai" },
-        { name: "Moscow", tz: "Europe/Moscow" },
-        { name: "Cairo", tz: "Africa/Cairo" },
-        { name: "London", tz: "Europe/London" },
+        { name: "Kabul", tz: "Asia/Kabul" },
+        { name: "Tehran", tz: "Asia/Tehran" },
+        { name: "St. John's", tz: "America/St_Johns" },
         { name: "New York", tz: "America/New_York" },
         { name: "Chicago", tz: "America/Chicago" },
         { name: "Denver", tz: "America/Denver" },
+        { name: "Phoenix", tz: "America/Phoenix" },
         { name: "Los Angeles", tz: "America/Los_Angeles" },
         { name: "Anchorage", tz: "America/Anchorage" },
         { name: "Honolulu", tz: "Pacific/Honolulu" }
@@ -112,92 +108,81 @@
 
     let isPartyMode = false;
 
-    function updateClock() {
-        if (isPartyMode) return;
-
+    function getNext420(tz) {
         const now = new Date();
-        let closest = { diff: Infinity, name: "Loading..." };
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: tz, hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'
+        });
+        
+        const parts = formatter.formatToParts(now);
+        const p = {}; parts.forEach(v => p[v.type] = v.value);
+        
+        // Current local time in that zone
+        const localDate = new Date(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+        
+        // Potential targets: Today 04:20, Today 16:20, Tomorrow 04:20
+        let targets = [
+            new Date(p.year, p.month - 1, p.day, 4, 20, 0),
+            new Date(p.year, p.month - 1, p.day, 16, 20, 0),
+            new Date(p.year, p.month - 1, p.day, 4, 20, 0)
+        ];
+        targets[2].setDate(targets[2].getDate() + 1);
 
+        // Find the first one that is in the future
+        for (let t of targets) {
+            let diff = t - localDate;
+            if (diff > 0) return diff;
+        }
+        return 86400000; // Fallback
+    }
+
+    function update() {
+        if (isPartyMode) return;
+        
+        let closest = { diff: Infinity, name: "" };
         locations.forEach(loc => {
             try {
-                // Get current time string for specific timezone
-                const locTimeStr = now.toLocaleString("en-US", { timeZone: loc.tz });
-                const locDate = new Date(locTimeStr);
-
-                // Check both 4:20 AM (4) and 4:20 PM (16)
-                [4, 16].forEach(hour => {
-                    let target = new Date(locTimeStr);
-                    target.setHours(hour, 20, 0, 0);
-
-                    // If that specific 4:20 has passed, check the next one (12 hours later)
-                    if (locDate >= target) {
-                        target.setHours(target.getHours() + 12);
-                    }
-
-                    let diff = target.getTime() - locDate.getTime();
-
-                    if (diff < closest.diff && diff > 0) {
-                        closest = { diff: diff, name: loc.name };
-                    }
-                });
-            } catch (e) {
-                console.warn("Skipping TZ:", loc.tz);
-            }
+                let diff = getNext420(loc.tz);
+                if (diff < closest.diff) closest = { diff: diff, name: loc.name };
+            } catch(e) {}
         });
 
+        // PARTY MODE TRIGGER
+        if (closest.diff <= 1000) { triggerParty(); return; }
+
         const container = document.getElementById('overlay-container');
-        const timerDisplay = document.getElementById('hero-timer');
-        const cityDisplay = document.getElementById('hero-city');
+        if (closest.diff < 60000) container.classList.add('is-warning');
+        else container.classList.remove('is-warning');
 
-        // Trigger Party Mode when diff is essentially zero
-        if (closest.diff <= 1000) {
-            triggerParty();
-            return;
-        }
-
-        cityDisplay.innerText = closest.name;
-
-        // Warning Pulse logic
-        if (closest.diff < 60000) {
-            container.classList.add('is-warning');
-        } else {
-            container.classList.remove('is-warning');
-        }
-
-        // Format Timer Display
-        let totalSeconds = Math.floor(closest.diff / 1000);
-        let h = Math.floor(totalSeconds / 3600);
-        let m = Math.floor((totalSeconds % 3600) / 60);
-        let s = totalSeconds % 60;
-
-        timerDisplay.innerText = h > 0 ? 
-            `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : 
-            `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        document.getElementById('hero-city').innerText = closest.name;
+        
+        let sTotal = Math.floor(closest.diff / 1000);
+        let h = Math.floor(sTotal / 3600);
+        let m = Math.floor((sTotal % 3600) / 60);
+        let s = sTotal % 60;
+        document.getElementById('hero-timer').innerText = h > 0 ? 
+            `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : 
+            `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
 
     function triggerParty() {
         isPartyMode = true;
         const container = document.getElementById('overlay-container');
-        const label = document.getElementById('label-text');
-        const timer = document.getElementById('hero-timer');
-
         container.classList.add('party-mode');
-        label.innerText = "IT'S 4:20 IN";
-        timer.innerText = "HIGH TIME";
-
-        // Party Mode runs for 30 seconds
+        document.getElementById('label-text').innerText = "IT'S 4:20 IN";
+        document.getElementById('hero-timer').innerText = "HIGH TIME";
         setTimeout(() => {
             isPartyMode = false;
             container.classList.remove('party-mode');
-            label.innerText = "NEXT 4:20 IN:";
-            updateClock();
+            document.getElementById('label-text').innerText = "NEXT 4:20 IN:";
+            update();
         }, 30000);
     }
 
-    setInterval(updateClock, 1000);
-    updateClock();
+    setInterval(update, 1000);
+    update();
 
-    // Background Smoke Effect
+    // Background Smoke
     const smokeContainer = document.getElementById('smoke');
     for (let i = 0; i < 15; i++) {
         let p = document.createElement('div');
