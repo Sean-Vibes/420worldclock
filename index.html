@@ -44,7 +44,6 @@
             height: auto;
             z-index: 20;
             filter: drop-shadow(0 0 5px rgba(78, 154, 6, 0.5));
-            transition: all 0.5s ease;
         }
 
         .is-warning { border-color: var(--warning) !important; box-shadow: 0 0 35px rgba(255, 68, 68, 0.7); }
@@ -107,6 +106,10 @@
     ];
 
     let isPartyMode = false;
+    let alarmPlayed = false;
+
+    // Load the Halo Sound Effect
+    const haloAlarm = new Audio("https://www.myinstants.com/media/sounds/halo-reach-1-minute-remain-33548.mp3");
 
     function getNext420(tz) {
         const now = new Date();
@@ -116,11 +119,8 @@
         
         const parts = formatter.formatToParts(now);
         const p = {}; parts.forEach(v => p[v.type] = v.value);
-        
-        // Current local time in that zone
         const localDate = new Date(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
         
-        // Potential targets: Today 04:20, Today 16:20, Tomorrow 04:20
         let targets = [
             new Date(p.year, p.month - 1, p.day, 4, 20, 0),
             new Date(p.year, p.month - 1, p.day, 16, 20, 0),
@@ -128,12 +128,11 @@
         ];
         targets[2].setDate(targets[2].getDate() + 1);
 
-        // Find the first one that is in the future
         for (let t of targets) {
             let diff = t - localDate;
             if (diff > 0) return diff;
         }
-        return 86400000; // Fallback
+        return 86400000;
     }
 
     function update() {
@@ -146,6 +145,19 @@
                 if (diff < closest.diff) closest = { diff: diff, name: loc.name };
             } catch(e) {}
         });
+
+        // ALARM LOGIC: Fire at 60 seconds
+        let secondsRemaining = Math.floor(closest.diff / 1000);
+        
+        if (secondsRemaining === 60 && !alarmPlayed) {
+            haloAlarm.play().catch(e => console.log("Audio blocked: Click anywhere on the page to enable sound!"));
+            alarmPlayed = true; 
+        }
+
+        // Reset alarm tracker once the countdown moves past the trigger point
+        if (secondsRemaining < 55 || secondsRemaining > 65) {
+            alarmPlayed = false;
+        }
 
         // PARTY MODE TRIGGER
         if (closest.diff <= 1000) { triggerParty(); return; }
@@ -182,7 +194,7 @@
     setInterval(update, 1000);
     update();
 
-    // Background Smoke
+    // Smoke Particles
     const smokeContainer = document.getElementById('smoke');
     for (let i = 0; i < 15; i++) {
         let p = document.createElement('div');
