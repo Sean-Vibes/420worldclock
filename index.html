@@ -8,7 +8,7 @@
             --leaf: #4e9a06;
             --warning: #ff4444;
             --smoke: #f0f0f0;
-            --glass: rgba(0, 0, 0, 0.85);
+            --glass: rgba(0, 0, 0, 0.9);
         }
 
         body {
@@ -40,7 +40,6 @@
             height: 420px;
             margin: 40px auto;
             box-sizing: border-box;
-            transition: all 0.5s ease;
             z-index: 10;
         }
 
@@ -53,7 +52,7 @@
             filter: drop-shadow(0 0 5px var(--leaf));
         }
 
-        .is-warning { border-color: var(--warning) !important; box-shadow: 0 0 35px rgba(255, 68, 68, 0.7); }
+        .is-warning { border-color: var(--warning) !important; }
         .is-warning #hero-timer { color: var(--warning) !important; }
 
         .party-mode { animation: party-border 0.5s infinite alternate; }
@@ -76,7 +75,7 @@
     <img src="NYS_420_logo.png" alt="Logo" class="corner-logo">
     <div class="smoke-wrap" id="smoke"></div>
     <span class="label-top" id="label-text">NEXT 4:20 IN:</span>
-    <h1 id="hero-city">LOAD...</h1>
+    <h1 id="hero-city">FINDING...</h1>
     <div id="hero-timer">00:00</div>
 </div>
 
@@ -91,11 +90,7 @@
     function createExplosion(x, y) {
         const hue = Math.random() * 360;
         for(let i=0; i<40; i++){
-            fParticles.push({
-                x, y, 
-                vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12,
-                alpha: 1, hue
-            });
+            fParticles.push({ x, y, vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12, alpha: 1, hue });
         }
     }
 
@@ -113,73 +108,81 @@
     }
     drawFireworks();
 
-    // --- LOGIC ---
+    // --- STABLE LOCATION LIST ---
     const locations = [
-        { name: "London", tz: "Europe/London" },
         { name: "New York", tz: "America/New_York" },
-        { name: "Los Angeles", tz: "America/Los_Angeles" },
+        { name: "London", tz: "Europe/London" },
         { name: "Tokyo", tz: "Asia/Tokyo" },
+        { name: "Los Angeles", tz: "America/Los_Angeles" },
         { name: "Sydney", tz: "Australia/Sydney" },
-        { name: "Denver", tz: "America/Denver" }
+        { name: "Chicago", tz: "America/Chicago" },
+        { name: "Denver", tz: "America/Denver" },
+        { name: "Dubai", tz: "Asia/Dubai" },
+        { name: "Honolulu", tz: "Pacific/Honolulu" }
     ];
 
     let isPartyMode = false;
     let alarmPlayed = false;
     const haloAlarm = new Audio("https://www.myinstants.com/media/sounds/halo-reach-1-minute-remain-33548.mp3");
 
-    function getDiff(tz) {
-        try {
-            // Get current time in city
-            const now = new Date();
-            const cityStr = now.toLocaleString("en-US", { timeZone: tz });
-            const cityDate = new Date(cityStr);
-
-            // Targets: 4:20 AM and 4:20 PM
-            const targets = [4, 16].map(h => {
-                let t = new Date(cityStr);
-                t.setHours(h, 20, 0, 0);
-                if (cityDate >= t) t.setHours(t.getHours() + 12); // Next 12 hour cycle
-                return t;
-            });
-
-            // Find the closest one
-            const diffs = targets.map(t => t.getTime() - cityDate.getTime());
-            return Math.min(...diffs);
-        } catch(e) { return Infinity; }
-    }
-
     function main() {
         if(isPartyMode) return;
 
-        let best = { diff: Infinity, name: "" };
+        let best = { diff: Infinity, name: "N/A" };
+        const now = new Date();
+
         locations.forEach(l => {
-            const d = getDiff(l.tz);
-            if(d < best.diff) best = { diff: d, name: l.name };
+            try {
+                // Get the current time in that specific city
+                const cityStr = now.toLocaleString("en-US", { timeZone: l.tz });
+                const cityDate = new Date(cityStr);
+
+                // Check 4:20 AM and 4:20 PM
+                [4, 16].forEach(hour => {
+                    let target = new Date(cityStr);
+                    target.setHours(hour, 20, 0, 0);
+                    
+                    if (cityDate >= target) {
+                        target.setHours(target.getHours() + 12);
+                    }
+
+                    const diff = target.getTime() - cityDate.getTime();
+                    if(diff < best.diff && diff > 0) {
+                        best = { diff: diff, name: l.name };
+                    }
+                });
+            } catch(e) {
+                console.error("Error with city: " + l.name);
+            }
         });
 
-        const sec = Math.floor(best.diff / 1000);
+        if (best.name === "N/A") return; // Keep searching if failed
+
+        const secTotal = Math.floor(best.diff / 1000);
         
-        // Audio
-        if(sec === 60 && !alarmPlayed) { 
-            haloAlarm.play().catch(() => {}); 
+        // Halo Audio Logic
+        if(secTotal === 60 && !alarmPlayed) { 
+            haloAlarm.play().catch(() => console.log("Click page to enable sound")); 
             alarmPlayed = true; 
         }
-        if(sec < 55) alarmPlayed = false;
+        if(secTotal < 50) alarmPlayed = false;
 
-        // Party
+        // Trigger Party
         if(best.diff <= 1000) { triggerParty(); return; }
 
-        // UI
+        // Update UI
         document.getElementById('hero-city').innerText = best.name;
-        const container = document.getElementById('overlay-container');
-        if(sec < 60) container.classList.add('is-warning'); else container.classList.remove('is-warning');
-
-        const h = Math.floor(sec / 3600);
-        const m = Math.floor((sec % 3600) / 60);
-        const s = sec % 60;
+        const h = Math.floor(secTotal / 3600);
+        const m = Math.floor((secTotal % 3600) / 60);
+        const s = secTotal % 60;
+        
         document.getElementById('hero-timer').innerText = h > 0 ? 
             `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : 
             `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+        const container = document.getElementById('overlay-container');
+        if(secTotal < 60) container.classList.add('is-warning');
+        else container.classList.remove('is-warning');
     }
 
     function triggerParty() {
@@ -199,7 +202,7 @@
     setInterval(main, 1000);
     main();
 
-    // Smoke
+    // Smoke Particles
     const smokeContainer = document.getElementById('smoke');
     for (let i = 0; i < 12; i++) {
         let p = document.createElement('div');
