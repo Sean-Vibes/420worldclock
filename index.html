@@ -19,6 +19,15 @@
             color: var(--smoke);
         }
 
+        /* Fireworks Layer */
+        #fireworksCanvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
         .content-box {
             position: relative;
             text-align: center;
@@ -30,10 +39,10 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.8);
             width: 750px;
             height: 420px;
-            margin: 20px auto;
+            margin: 40px auto;
             box-sizing: border-box;
             transition: all 0.5s ease;
-            overflow: hidden;
+            z-index: 10;
         }
 
         .corner-logo {
@@ -50,11 +59,10 @@
         .is-warning #hero-timer { color: var(--warning) !important; animation: fast-pulse 0.5s infinite alternate; }
         @keyframes fast-pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
 
-        .party-mode { animation: party-flicker 0.4s infinite; border-color: #fff !important; }
-        @keyframes party-flicker {
-            0% { background: rgba(0, 60, 0, 0.9); }
-            50% { background: rgba(40, 0, 40, 0.9); }
-            100% { background: rgba(0, 0, 60, 0.9); }
+        .party-mode { animation: party-border 0.5s infinite alternate; }
+        @keyframes party-border {
+            from { border-color: var(--leaf); }
+            to { border-color: #fff; box-shadow: 0 0 50px #fff; }
         }
 
         #hero-city { font-size: 2.8rem; margin: 10px 0; text-transform: uppercase; font-weight: 900; color: var(--leaf); letter-spacing: 2px; z-index: 10; position: relative; }
@@ -69,6 +77,8 @@
 </head>
 <body>
 
+    <canvas id="fireworksCanvas"></canvas>
+
     <div class="content-box" id="overlay-container">
         <img src="NYS_420_logo.png" alt="NY 420 Vibes" class="corner-logo">
         <div class="smoke-wrap" id="smoke"></div>
@@ -79,6 +89,45 @@
     </div>
 
 <script>
+    // --- REAL CANVAS FIREWORKS ENGINE ---
+    const canvas = document.getElementById('fireworksCanvas');
+    const ctx = canvas.getContext('2d');
+    let fParticles = [];
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+    function launchExplosion(x, y) {
+        const hue = Math.random() * 360;
+        for(let i=0; i<50; i++) {
+            fParticles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 12,
+                vy: (Math.random() - 0.5) * 12,
+                alpha: 1,
+                hue: hue
+            });
+        }
+    }
+
+    function renderFireworks() {
+        ctx.fillStyle = 'rgba(17, 17, 17, 0.2)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        if (isPartyMode && Math.random() < 0.15) {
+            launchExplosion(Math.random() * canvas.width, Math.random() * (canvas.height * 0.6));
+        }
+
+        fParticles.forEach((p, index) => {
+            p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.alpha -= 0.015;
+            ctx.fillStyle = `hsl(${p.hue}, 100%, 60%, ${p.alpha})`;
+            ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2); ctx.fill();
+            if(p.alpha <= 0) fParticles.splice(index, 1);
+        });
+        requestAnimationFrame(renderFireworks);
+    }
+    renderFireworks();
+
+    // --- AIRTIGHT LOGIC ---
     const locations = [
         { name: "Pitcairn Islands", tz: "Pacific/Pitcairn" },
         { name: "Gambier Islands", tz: "Pacific/Gambier" },
@@ -107,30 +156,36 @@
 
     let isPartyMode = false;
     let alarmPlayed = false;
-
-    // Load the Halo Sound Effect
     const haloAlarm = new Audio("https://www.myinstants.com/media/sounds/halo-reach-1-minute-remain-33548.mp3");
 
-    function getNext420(tz) {
+    function getSecondsUntilNext420(tz) {
         const now = new Date();
         const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: tz, hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'
+            timeZone: tz, hour12: false, hour: 'numeric', minute: 'numeric', second: 'numeric'
         });
         
         const parts = formatter.formatToParts(now);
         const p = {}; parts.forEach(v => p[v.type] = v.value);
-        const localDate = new Date(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
         
-        let targets = [
-            new Date(p.year, p.month - 1, p.day, 4, 20, 0),
-            new Date(p.year, p.month - 1, p.day, 16, 20, 0),
-            new Date(p.year, p.month - 1, p.day, 4, 20, 0)
-        ];
-        targets[2].setDate(targets[2].getDate() + 1);
+        const hour = parseInt(p.hour);
+        const minute = parseInt(p.minute);
+        const second = parseInt(p.second);
 
-        for (let t of targets) {
-            let diff = t - localDate;
-            if (diff > 0) return diff;
+        // Calculate wall-clock position in seconds from midnight
+        const currentSeconds = (hour * 3600) + (minute * 60) + second;
+        
+        const am420 = (4 * 3600) + (20 * 60);         // 15,600 seconds
+        const pm420 = (16 * 3600) + (20 * 60);        // 58,800 seconds
+        const nextDayAm420 = am420 + (24 * 3600);     // 102,000 seconds
+
+        const targets = [am420, pm420, nextDayAm420];
+        
+        for (let target of targets) {
+            let diff = target - currentSeconds;
+            if (diff > 0) {
+                // Include real-time sub-seconds for precise countdown transition
+                return (diff * 1000) - now.getMilliseconds();
+            }
         }
         return 86400000;
     }
@@ -141,20 +196,18 @@
         let closest = { diff: Infinity, name: "" };
         locations.forEach(loc => {
             try {
-                let diff = getNext420(loc.tz);
+                let diff = getSecondsUntilNext420(loc.tz);
                 if (diff < closest.diff) closest = { diff: diff, name: loc.name };
             } catch(e) {}
         });
 
-        // ALARM LOGIC: Fire at 60 seconds
         let secondsRemaining = Math.floor(closest.diff / 1000);
         
+        // ALARM LOGIC
         if (secondsRemaining === 60 && !alarmPlayed) {
-            haloAlarm.play().catch(e => console.log("Audio blocked: Click anywhere on the page to enable sound!"));
+            haloAlarm.play().catch(e => console.log("Click the page once to enable audio alerts!"));
             alarmPlayed = true; 
         }
-
-        // Reset alarm tracker once the countdown moves past the trigger point
         if (secondsRemaining < 55 || secondsRemaining > 65) {
             alarmPlayed = false;
         }
@@ -168,10 +221,10 @@
 
         document.getElementById('hero-city').innerText = closest.name;
         
-        let sTotal = Math.floor(closest.diff / 1000);
-        let h = Math.floor(sTotal / 3600);
-        let m = Math.floor((sTotal % 3600) / 60);
-        let s = sTotal % 60;
+        let h = Math.floor(secondsRemaining / 3600);
+        let m = Math.floor((secondsRemaining % 3600) / 60);
+        let s = secondsRemaining % 60;
+        
         document.getElementById('hero-timer').innerText = h > 0 ? 
             `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : 
             `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
@@ -183,6 +236,7 @@
         container.classList.add('party-mode');
         document.getElementById('label-text').innerText = "IT'S 4:20 IN";
         document.getElementById('hero-timer').innerText = "HIGH TIME";
+        
         setTimeout(() => {
             isPartyMode = false;
             container.classList.remove('party-mode');
@@ -194,7 +248,7 @@
     setInterval(update, 1000);
     update();
 
-    // Smoke Particles
+    // Ambient Smoke Effect
     const smokeContainer = document.getElementById('smoke');
     for (let i = 0; i < 15; i++) {
         let p = document.createElement('div');
