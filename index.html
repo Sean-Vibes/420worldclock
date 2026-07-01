@@ -19,7 +19,6 @@
             color: var(--smoke);
         }
 
-        /* Fireworks Layer */
         #fireworksCanvas {
             position: fixed;
             top: 0; left: 0;
@@ -89,7 +88,7 @@
     </div>
 
 <script>
-    // --- REAL CANVAS FIREWORKS ENGINE ---
+    // --- CANVAS FIREWORKS ---
     const canvas = document.getElementById('fireworksCanvas');
     const ctx = canvas.getContext('2d');
     let fParticles = [];
@@ -127,8 +126,8 @@
     }
     renderFireworks();
 
-    // --- AIRTIGHT LOGIC ---
-    const locations = [
+    // --- TIMING SYSTEM ---
+    const fallbackLocations = [
         { name: "Pitcairn Islands", tz: "Pacific/Pitcairn" },
         { name: "Gambier Islands", tz: "Pacific/Gambier" },
         { name: "Marquesas", tz: "Pacific/Marquesas" },
@@ -158,54 +157,73 @@
     let alarmPlayed = false;
     const haloAlarm = new Audio("https://www.myinstants.com/media/sounds/halo-reach-1-minute-remain-33548.mp3");
 
-    function getSecondsUntilNext420(tz) {
-        const now = new Date();
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: tz, hour12: false, hour: 'numeric', minute: 'numeric', second: 'numeric'
-        });
-        
-        const parts = formatter.formatToParts(now);
-        const p = {}; parts.forEach(v => p[v.type] = v.value);
-        
-        const hour = parseInt(p.hour);
-        const minute = parseInt(p.minute);
-        const second = parseInt(p.second);
-
-        // Calculate wall-clock position in seconds from midnight
+    // Helper helper to evaluate structural seconds left
+    function parseDiffFromWallClock(hour, minute, second, ms) {
         const currentSeconds = (hour * 3600) + (minute * 60) + second;
         
-        const am420 = (4 * 3600) + (20 * 60);         // 15,600 seconds
-        const pm420 = (16 * 3600) + (20 * 60);        // 58,800 seconds
-        const nextDayAm420 = am420 + (24 * 3600);     // 102,000 seconds
+        const am420 = (4 * 3600) + (20 * 60);         
+        const pm420 = (16 * 3600) + (20 * 60);        
+        const nextDayAm420 = am420 + (24 * 3600);     
+        const nextDayPm420 = pm420 + (24 * 3600);     
 
-        const targets = [am420, pm420, nextDayAm420];
+        const targets = [am420, pm420, nextDayAm420, nextDayPm420];
         
         for (let target of targets) {
             let diff = target - currentSeconds;
             if (diff > 0) {
-                // Include real-time sub-seconds for precise countdown transition
-                return (diff * 1000) - now.getMilliseconds();
+                return (diff * 1000) - ms;
             }
         }
         return 86400000;
     }
 
+    function getSecondsUntilNext420(tz) {
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: tz, hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'
+        });
+        
+        const parts = formatter.formatToParts(now);
+        const p = {}; parts.forEach(v => p[v.type] = v.value);
+        
+        return parseDiffFromWallClock(parseInt(p.hour), parseInt(p.minute), parseInt(p.second), now.getMilliseconds());
+    }
+
+    function getLocalSecondsUntilNext420() {
+        const now = new Date();
+        return parseDiffFromWallClock(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    }
+
     function update() {
         if (isPartyMode) return;
         
-        let closest = { diff: Infinity, name: "" };
-        locations.forEach(loc => {
-            try {
-                let diff = getSecondsUntilNext420(loc.tz);
-                if (diff < closest.diff) closest = { diff: diff, name: loc.name };
-            } catch(e) {}
-        });
+        let closest = { diff: Infinity, name: "Searching..." };
+        
+        // 1. Try checking the visitor's absolute device local time first
+        const localDiff = getLocalSecondsUntilNext420();
+        
+        // If your local 4:20 is coming up within the next 45 minutes, force priority focus onto it
+        if (localDiff > 0 && localDiff <= (45 * 60 * 1000)) {
+            closest = { diff: localDiff, name: "Your Local Area" };
+        } else {
+            // 2. Fall back to scanning the global loop if local time isn't hitting soon
+            fallbackLocations.forEach(loc => {
+                try {
+                    let diff = getSecondsUntilNext420(loc.tz);
+                    if (diff < closest.diff && diff > 0) {
+                        closest = { diff: diff, name: loc.name };
+                    }
+                } catch(e) {}
+            });
+        }
+
+        if(closest.name === "Searching...") return;
 
         let secondsRemaining = Math.floor(closest.diff / 1000);
         
         // ALARM LOGIC
         if (secondsRemaining === 60 && !alarmPlayed) {
-            haloAlarm.play().catch(e => console.log("Click the page once to enable audio alerts!"));
+            haloAlarm.play().catch(e => console.log("Click page to unmute sound."));
             alarmPlayed = true; 
         }
         if (secondsRemaining < 55 || secondsRemaining > 65) {
@@ -248,7 +266,7 @@
     setInterval(update, 1000);
     update();
 
-    // Ambient Smoke Effect
+    // Smoke Particles
     const smokeContainer = document.getElementById('smoke');
     for (let i = 0; i < 15; i++) {
         let p = document.createElement('div');
