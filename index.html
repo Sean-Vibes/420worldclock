@@ -157,73 +157,95 @@
     let alarmPlayed = false;
     const haloAlarm = new Audio("https://www.myinstants.com/media/sounds/halo-reach-1-minute-remain-33548.mp3");
 
-    // Helper helper to evaluate structural seconds left
-    function parseDiffFromWallClock(hour, minute, second, ms) {
-        const currentSeconds = (hour * 3600) + (minute * 60) + second;
+    // Pure Epoch math to determine millisecond distance safely
+    function getMsUntilNext420(tz) {
+        const now = new Date();
         
-        const am420 = (4 * 3600) + (20 * 60);         
-        const pm420 = (16 * 3600) + (20 * 60);        
-        const nextDayAm420 = am420 + (24 * 3600);     
-        const nextDayPm420 = pm420 + (24 * 3600);     
+        // Find current parts in the target zone explicitly
+        const formatOptions = { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false };
+        const formatter = new Intl.DateTimeFormat('en-US', formatOptions);
+        
+        let parts;
+        try {
+            parts = formatter.formatToParts(now);
+        } catch(e) {
+            return Infinity; // Skip malfunctioning zone keys safely
+        }
 
-        const targets = [am420, pm420, nextDayAm420, nextDayPm420];
+        const p = {}; parts.forEach(v => p[v.type] = v.value);
         
-        for (let target of targets) {
-            let diff = target - currentSeconds;
+        // Construct standard local date instance for the target city context
+        const localYear = parseInt(p.year);
+        const localMonth = parseInt(p.month) - 1;
+        const localDay = parseInt(p.day);
+        
+        // Generate upcoming milestone targets
+        const targetTimes = [
+            new Date(Date.UTC(localYear, localMonth, localDay, 4, 20, 0)),   // AM Today
+            new Date(Date.UTC(localYear, localMonth, localDay, 16, 20, 0)),  // PM Today
+            new Date(Date.UTC(localYear, localMonth, localDay + 1, 4, 20, 0)) // AM Tomorrow
+        ];
+
+        // Read target city current time in absolute UTC value
+        const currentZoneUtc = Date.UTC(localYear, localMonth, localDay, parseInt(p.hour), parseInt(p.minute), parseInt(p.second));
+
+        for (let target of targetTimes) {
+            let diff = target.getTime() - currentZoneUtc;
             if (diff > 0) {
-                return (diff * 1000) - ms;
+                // Return exact adjusted offset counter minus local processing milliseconds
+                return diff - now.getMilliseconds();
             }
         }
         return 86400000;
     }
 
-    function getSecondsUntilNext420(tz) {
+    function getLocalMsUntilNext420() {
         const now = new Date();
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: tz, hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'
-        });
-        
-        const parts = formatter.formatToParts(now);
-        const p = {}; parts.forEach(v => p[v.type] = v.value);
-        
-        return parseDiffFromWallClock(parseInt(p.hour), parseInt(p.minute), parseInt(p.second), now.getMilliseconds());
-    }
+        const targetTimes = [
+            new Date(now.getFullYear(), now.getMonth(), now.getDate(), 4, 20, 0),
+            new Date(now.getFullYear(), now.getMonth(), now.getDate(), 16, 20, 0),
+            new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 4, 20, 0)
+        ];
 
-    function getLocalSecondsUntilNext420() {
-        const now = new Date();
-        return parseDiffFromWallClock(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+        for (let target of targetTimes) {
+            let diff = target.getTime() - now.getTime();
+            if (diff > 0) return diff;
+        }
+        return 86400000;
     }
 
     function update() {
         if (isPartyMode) return;
         
-        let closest = { diff: Infinity, name: "Searching..." };
+        let closest = { diff: Infinity, name: "" };
         
-        // 1. Try checking the visitor's absolute device local time first
-        const localDiff = getLocalSecondsUntilNext420();
+        // 1. Check local device focus target first
+        const localDiff = getLocalMsUntilNext420();
         
-        // If your local 4:20 is coming up within the next 45 minutes, force priority focus onto it
+        // Priority capture if visitor's target is approaching within 45 minutes
         if (localDiff > 0 && localDiff <= (45 * 60 * 1000)) {
             closest = { diff: localDiff, name: "Your Local Area" };
         } else {
-            // 2. Fall back to scanning the global loop if local time isn't hitting soon
+            // 2. Loop global cities map sequentially
             fallbackLocations.forEach(loc => {
-                try {
-                    let diff = getSecondsUntilNext420(loc.tz);
-                    if (diff < closest.diff && diff > 0) {
-                        closest = { diff: diff, name: loc.name };
-                    }
-                } catch(e) {}
+                let diff = getMsUntilNext420(loc.tz);
+                if (diff < closest.diff && diff > 0) {
+                    closest = { diff: diff, name: loc.name };
+                }
             });
         }
 
-        if(closest.name === "Searching...") return;
+        // Safety fallback if no zones populate instantly
+        if(!closest.name) {
+            document.getElementById('hero-city').innerText = "SYNCING...";
+            return;
+        }
 
         let secondsRemaining = Math.floor(closest.diff / 1000);
         
         // ALARM LOGIC
         if (secondsRemaining === 60 && !alarmPlayed) {
-            haloAlarm.play().catch(e => console.log("Click page to unmute sound."));
+            haloAlarm.play().catch(e => console.log("Audio waiting for user click."));
             alarmPlayed = true; 
         }
         if (secondsRemaining < 55 || secondsRemaining > 65) {
