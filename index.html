@@ -8,7 +8,7 @@
             --leaf: #4e9a06;
             --warning: #ff4444;
             --smoke: #f0f0f0;
-            --glass: rgba(0, 0, 0, 0.9);
+            --glass: rgba(0, 0, 0, 0.85);
         }
 
         body {
@@ -19,12 +19,15 @@
             color: var(--smoke);
         }
 
+        /* The Canvas for Fireworks */
         #fireworksCanvas {
             position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
-            z-index: 1;
+            z-index: 1; /* Behind the clock, in front of the background */
         }
 
         .content-box {
@@ -38,151 +41,219 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.8);
             width: 750px;
             height: 420px;
-            margin: 40px auto;
+            margin: 20px auto;
             box-sizing: border-box;
-            z-index: 10;
+            transition: all 0.5s ease;
+            overflow: hidden;
+            z-index: 10; /* Keep clock on top */
         }
 
         .corner-logo {
             position: absolute;
-            bottom: 15px;
+            bottom: 12px;
             left: 15px;
-            width: 80px; 
+            width: 70px; 
             height: auto;
-            filter: drop-shadow(0 0 5px var(--leaf));
+            z-index: 20;
+            filter: drop-shadow(0 0 5px rgba(78, 154, 6, 0.5));
         }
 
-        .is-warning { border-color: var(--warning) !important; }
-        .is-warning #hero-timer { color: var(--warning) !important; }
+        .is-warning { border-color: var(--warning) !important; box-shadow: 0 0 35px rgba(255, 68, 68, 0.7); }
+        .is-warning #hero-timer { color: var(--warning) !important; animation: fast-pulse 0.5s infinite alternate; }
+        @keyframes fast-pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
 
+        /* Party Mode Border Pulse */
         .party-mode { animation: party-border 0.5s infinite alternate; }
-        @keyframes party-border { from { border-color: var(--leaf); } to { border-color: #fff; box-shadow: 0 0 50px #fff; } }
+        @keyframes party-border {
+            from { border-color: var(--leaf); }
+            to { border-color: #fff; box-shadow: 0 0 50px #fff; }
+        }
 
-        #hero-city { font-size: 3rem; margin: 10px 0; text-transform: uppercase; color: var(--leaf); }
-        #hero-timer { font-size: 7rem; font-family: 'Courier New', monospace; margin: 10px 0; color: #fff; font-weight: bold; }
-        .label-top { font-size: 1.8rem; color: #aaa; text-transform: uppercase; font-weight: bold; }
+        #hero-city { font-size: 2.8rem; margin: 10px 0; text-transform: uppercase; font-weight: 900; color: var(--leaf); letter-spacing: 2px; }
+        #hero-timer { font-size: 6rem; font-family: 'Courier New', monospace; margin: 10px 0; color: #fff; font-weight: bold; }
+        .label-top { font-size: 1.8rem; letter-spacing: 4px; color: #aaa; text-transform: uppercase; font-weight: bold; }
+        .bottom-label { font-size: 1.6rem; color: var(--leaf); margin-top: 5px; font-weight: bold; }
 
         .smoke-wrap { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 2; }
         .particle { position: absolute; bottom: -20px; background: rgba(255, 255, 255, 0.1); border-radius: 50%; filter: blur(15px); animation: rise 3s infinite ease-out; }
-        @keyframes rise { 0% { transform: translateY(0) scale(1); opacity: 0; } 100% { transform: translateY(-400px) scale(4); opacity: 0; } }
+        @keyframes rise { 0% { transform: translateY(0) scale(1); opacity: 0; } 50% { opacity: 0.2; } 100% { transform: translateY(-300px) scale(4); opacity: 0; } }
     </style>
 </head>
 <body>
 
-<canvas id="fireworksCanvas"></canvas>
+    <canvas id="fireworksCanvas"></canvas>
 
-<div class="content-box" id="overlay-container">
-    <img src="NYS_420_logo.png" alt="Logo" class="corner-logo">
-    <div class="smoke-wrap" id="smoke"></div>
-    <span class="label-top" id="label-text">NEXT 4:20 IN:</span>
-    <h1 id="hero-city">FINDING...</h1>
-    <div id="hero-timer">00:00</div>
-</div>
+    <div class="content-box" id="overlay-container">
+        <img src="NYS_420_logo.png" alt="NY 420 Vibes" class="corner-logo">
+        <div class="smoke-wrap" id="smoke"></div>
+        <span class="label-top" id="label-text">NEXT 4:20 IN:</span>
+        <h1 id="hero-city">SYNCING...</h1>
+        <div id="hero-timer">00:00</div>
+        <div class="bottom-label" id="bottom-label-text">Global Cannabis Clock</div>
+    </div>
 
 <script>
-    // --- FIREWORKS ---
+    // --- FIREWORKS ENGINE ---
     const canvas = document.getElementById('fireworksCanvas');
     const ctx = canvas.getContext('2d');
-    let fParticles = [];
-    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-    window.addEventListener('resize', resize); resize();
+    let particles = [];
+    let fireworks = [];
 
-    function createExplosion(x, y) {
-        const hue = Math.random() * 360;
-        for(let i=0; i<40; i++){
-            fParticles.push({ x, y, vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12, alpha: 1, hue });
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Firework {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = canvas.height;
+            this.targetY = Math.random() * (canvas.height / 2);
+            this.speed = 4 + Math.random() * 3;
+            this.angle = Math.atan2(this.targetY - this.y, 0);
+            this.hue = Math.random() * 360;
+        }
+        update() {
+            this.y -= this.speed;
+            if (this.y <= this.targetY) {
+                explode(this.x, this.y, this.hue);
+                return true;
+            }
+            return false;
+        }
+        draw() {
+            ctx.fillStyle = `hsl(${this.hue}, 100%, 50%)`;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+            ctx.fill();
         }
     }
 
-    function drawFireworks() {
-        ctx.fillStyle = 'rgba(17, 17, 17, 0.2)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        if(isPartyMode && Math.random() < 0.15) createExplosion(Math.random()*canvas.width, Math.random()*canvas.height);
-        fParticles.forEach((p, i) => {
-            p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.alpha -= 0.02;
-            ctx.fillStyle = `hsl(${p.hue}, 100%, 50%, ${p.alpha})`;
-            ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, 7); ctx.fill();
-            if(p.alpha <= 0) fParticles.splice(i, 1);
-        });
-        requestAnimationFrame(drawFireworks);
+    class Particle {
+        constructor(x, y, hue) {
+            this.x = x; this.y = y;
+            this.hue = hue;
+            this.gravity = 0.1;
+            this.friction = 0.95;
+            this.velocity = {
+                x: (Math.random() - 0.5) * 10,
+                y: (Math.random() - 0.5) * 10
+            };
+            this.alpha = 1;
+            this.decay = 0.01 + Math.random() * 0.02;
+        }
+        update() {
+            this.velocity.x *= this.friction;
+            this.velocity.y *= this.friction;
+            this.velocity.y += this.gravity;
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
+            this.alpha -= this.decay;
+        }
+        draw() {
+            ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = `hsl(${this.hue}, 100%, 50%)`;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
-    drawFireworks();
 
-    // --- STABLE LOCATION LIST ---
+    function explode(x, y, hue) {
+        for (let i = 0; i < 50; i++) {
+            particles.push(new Particle(x, y, hue));
+        }
+    }
+
+    function animateFireworks() {
+        ctx.fillStyle = 'rgba(17, 17, 17, 0.2)'; // Trails
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        if (isPartyMode && Math.random() < 0.1) {
+            fireworks.push(new Firework());
+        }
+
+        fireworks = fireworks.filter(f => {
+            f.update();
+            f.draw();
+            return f.y > f.targetY;
+        });
+
+        particles = particles.filter(p => {
+            p.update();
+            p.draw();
+            return p.alpha > 0;
+        });
+
+        requestAnimationFrame(animateFireworks);
+    }
+    animateFireworks();
+
+    // --- CLOCK LOGIC ---
     const locations = [
         { name: "New York", tz: "America/New_York" },
         { name: "London", tz: "Europe/London" },
         { name: "Tokyo", tz: "Asia/Tokyo" },
         { name: "Los Angeles", tz: "America/Los_Angeles" },
-        { name: "Sydney", tz: "Australia/Sydney" },
-        { name: "Chicago", tz: "America/Chicago" },
-        { name: "Denver", tz: "America/Denver" },
-        { name: "Dubai", tz: "Asia/Dubai" },
-        { name: "Honolulu", tz: "Pacific/Honolulu" }
+        { name: "Sydney", tz: "Australia/Sydney" }
+        // ... (Add your other locations here)
     ];
 
     let isPartyMode = false;
     let alarmPlayed = false;
     const haloAlarm = new Audio("https://www.myinstants.com/media/sounds/halo-reach-1-minute-remain-33548.mp3");
 
-    function main() {
-        if(isPartyMode) return;
-
-        let best = { diff: Infinity, name: "N/A" };
+    function getNext420(tz) {
         const now = new Date();
+        const zoneTime = new Date(now.toLocaleString("en-US", { timeZone: tz }));
+        let targets = [
+            new Date(zoneTime), new Date(zoneTime), new Date(zoneTime)
+        ];
+        targets[0].setHours(4, 20, 0, 0);
+        targets[1].setHours(16, 20, 0, 0);
+        targets[2].setDate(targets[2].getDate() + 1);
+        targets[2].setHours(4, 20, 0, 0);
 
-        locations.forEach(l => {
-            try {
-                // Get the current time in that specific city
-                const cityStr = now.toLocaleString("en-US", { timeZone: l.tz });
-                const cityDate = new Date(cityStr);
+        for (let t of targets) {
+            let diff = t - zoneTime;
+            if (diff > 0) return diff;
+        }
+        return 86400000;
+    }
 
-                // Check 4:20 AM and 4:20 PM
-                [4, 16].forEach(hour => {
-                    let target = new Date(cityStr);
-                    target.setHours(hour, 20, 0, 0);
-                    
-                    if (cityDate >= target) {
-                        target.setHours(target.getHours() + 12);
-                    }
-
-                    const diff = target.getTime() - cityDate.getTime();
-                    if(diff < best.diff && diff > 0) {
-                        best = { diff: diff, name: l.name };
-                    }
-                });
-            } catch(e) {
-                console.error("Error with city: " + l.name);
-            }
+    function update() {
+        if (isPartyMode) return;
+        
+        let closest = { diff: Infinity, name: "" };
+        locations.forEach(loc => {
+            let diff = getNext420(loc.tz);
+            if (diff < closest.diff) closest = { diff: diff, name: loc.name };
         });
 
-        if (best.name === "N/A") return; // Keep searching if failed
+        let secRem = Math.floor(closest.diff / 1000);
 
-        const secTotal = Math.floor(best.diff / 1000);
-        
-        // Halo Audio Logic
-        if(secTotal === 60 && !alarmPlayed) { 
-            haloAlarm.play().catch(() => console.log("Click page to enable sound")); 
-            alarmPlayed = true; 
+        if (secRem === 60 && !alarmPlayed) {
+            haloAlarm.play().catch(() => {});
+            alarmPlayed = true;
         }
-        if(secTotal < 50) alarmPlayed = false;
+        if (secRem < 55 || secRem > 65) alarmPlayed = false;
 
-        // Trigger Party
-        if(best.diff <= 1000) { triggerParty(); return; }
+        if (closest.diff <= 1000) { triggerParty(); return; }
 
-        // Update UI
-        document.getElementById('hero-city').innerText = best.name;
-        const h = Math.floor(secTotal / 3600);
-        const m = Math.floor((secTotal % 3600) / 60);
-        const s = secTotal % 60;
+        const container = document.getElementById('overlay-container');
+        if (closest.diff < 60000) container.classList.add('is-warning');
+        else container.classList.remove('is-warning');
+
+        document.getElementById('hero-city').innerText = closest.name;
         
+        let h = Math.floor(secRem / 3600);
+        let m = Math.floor((secRem % 3600) / 60);
+        let s = secRem % 60;
         document.getElementById('hero-timer').innerText = h > 0 ? 
             `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : 
             `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-
-        const container = document.getElementById('overlay-container');
-        if(secTotal < 60) container.classList.add('is-warning');
-        else container.classList.remove('is-warning');
     }
 
     function triggerParty() {
@@ -191,24 +262,25 @@
         container.classList.add('party-mode');
         document.getElementById('label-text').innerText = "IT'S 4:20 IN";
         document.getElementById('hero-timer').innerText = "HIGH TIME";
+        
         setTimeout(() => {
             isPartyMode = false;
             container.classList.remove('party-mode');
             document.getElementById('label-text').innerText = "NEXT 4:20 IN:";
-            main();
-        }, 20000);
+            update();
+        }, 30000);
     }
 
-    setInterval(main, 1000);
-    main();
+    setInterval(update, 1000);
+    update();
 
     // Smoke Particles
     const smokeContainer = document.getElementById('smoke');
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 15; i++) {
         let p = document.createElement('div');
         p.className = 'particle';
         p.style.left = Math.random() * 100 + '%';
-        p.style.width = p.style.height = (Math.random() * 60 + 40) + 'px';
+        p.style.width = p.style.height = (Math.random() * 50 + 40) + 'px';
         p.style.animationDelay = (Math.random() * 3) + 's';
         smokeContainer.appendChild(p);
     }
